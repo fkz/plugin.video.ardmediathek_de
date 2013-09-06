@@ -9,6 +9,9 @@ import xbmcgui
 import sys
 import re
 import os
+import SimpleDownloader as downloader
+import datetime
+
 
 socket.setdefaulttimeout(30)
 pluginhandle = int(sys.argv[1])
@@ -18,6 +21,7 @@ translation = addon.getLocalizedString
 forceViewMode = addon.getSetting("forceViewMode") == "true"
 viewMode = str(addon.getSetting("viewMode"))
 baseUrl = "http://www.ardmediathek.de"
+downloader = downloader.SimpleDownloader()
 
 addon_work_folder = xbmc.translatePath("special://profile/addon_data/"+addonID)
 channelFavsFile = xbmc.translatePath("special://profile/addon_data/"+addonID+"/"+addonID+".favorites")
@@ -234,6 +238,14 @@ def listVideosDossier(url):
 
 
 def playVideo(url):
+    url = resolveUrl (url)
+    if url:
+        listitem = xbmcgui.ListItem(path=url)
+        xbmcplugin.setResolvedUrl(pluginhandle, True, listitem)
+
+
+
+def resolveUrl(url):
     content = getUrl(url)
     matchFSK = re.compile('<div class="fsk">(.+?)</div>', re.DOTALL).findall(content)
     if matchFSK:
@@ -268,8 +280,7 @@ def playVideo(url):
         if url:
             if "?" in url:
                 url = url[:url.find("?")]
-            listitem = xbmcgui.ListItem(path=url)
-            xbmcplugin.setResolvedUrl(pluginhandle, True, listitem)
+            return url
 
 
 def queueVideo(url, name):
@@ -402,7 +413,9 @@ def addLink(name, url, mode, iconimage, duration="", desc=""):
     liz = xbmcgui.ListItem(name, iconImage="DefaultVideo.png", thumbnailImage=iconimage)
     liz.setInfo(type="Video", infoLabels={"Title": name, "Duration": duration, "Plot": desc})
     liz.setProperty('IsPlayable', 'true')
-    liz.addContextMenuItems([(translation(30012), 'RunPlugin(plugin://'+addonID+'/?mode=queueVideo&url='+urllib.quote_plus(u)+'&name='+urllib.quote_plus(name)+')',)])
+    liz.addContextMenuItems(
+        [(translation(30012), 'RunPlugin(plugin://'+addonID+'/?mode=queueVideo&url='+urllib.quote_plus(u)+'&name='+urllib.quote_plus(name)+')',),
+         (translation(30201), 'RunPlugin(plugin://'+addonID+'/?mode=download&url='+urllib.quote_plus(url)+'&name='+urllib.quote_plus(name)+')',)])
     ok = xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]), url=u, listitem=liz)
     return ok
 
@@ -436,6 +449,23 @@ def addShowFavDir(name, url, mode, iconimage):
     liz.addContextMenuItems([(translation(30029), 'RunPlugin(plugin://'+addonID+'/?mode=favs&url='+urllib.quote_plus(playListInfos)+')',)])
     ok = xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]), url=u, listitem=liz, isFolder=True)
     return ok
+
+def download(url, name):
+    dialog = xbmcgui.Dialog()
+
+    url  = resolveUrl(url)
+    endung = re.search('\.([^\.]*)$', url)
+    name = re.sub('[^0-9a-zA-Z:\. -]','',name)
+    name = (name + datetime.datetime.now().isoformat(' ') + "." + endung.group(1))
+
+    xbmc.log("Download start: " + url + ", " + name)
+
+    download_path = addon.getSetting("download")
+    if download_path == "":
+        dialog.ok("Error", "You have to set download dir")
+    else:
+        args = { "url": url, "download_path": download_path }
+        downloader.download(name, args)
 
 params = parameters_string_to_dict(sys.argv[2])
 mode = urllib.unquote_plus(params.get('mode', ''))
@@ -474,5 +504,7 @@ elif mode == 'search':
     search()
 elif mode == 'favs':
     favs(url)
+elif mode == 'download':
+    download(url, name)
 else:
     index()

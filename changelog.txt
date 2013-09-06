@@ -13,3 +13,5 @@
 - Fixed videoplayback for some streams
 - Added context menu "Add to queue"
 - Changed livestream url
+2.0.5
+- Added context menu "Download video"
